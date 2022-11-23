@@ -1,10 +1,10 @@
 import { PostsService } from './../posts.service';
 import { Component , EventEmitter, Output, OnInit } from "@angular/core";
-import { NgForm } from "@angular/forms";
+import { FormControl, FormGroup, NgForm , Validators} from "@angular/forms";
 
 import { Post } from "../post.model";
 import { ActivatedRoute, ParamMap } from '@angular/router';
-import { ThisReceiver } from '@angular/compiler';
+import {mimeType} from "./mime-typ.validator"
 @Component({
   selector : 'app-post-create',
   templateUrl : './post-create.component.html',
@@ -16,6 +16,9 @@ export class PostCreateComponent implements OnInit{
   enteredTitle = '';
   post : Post;
   isLoading  = false;
+  imagePreview : string;
+  form : FormGroup;
+
   private mode  = 'create'
   private postId :string;
 
@@ -27,6 +30,12 @@ export class PostCreateComponent implements OnInit{
 
 
   ngOnInit() {
+    this.form = new FormGroup({
+     title: new FormControl(null, {validators : [Validators.required, Validators.minLength(3)]}),
+      content : new FormControl(null, {validators : [Validators.required]}),
+      image: new FormControl(null,{validators:[Validators.required], asyncValidators: [mimeType]}),
+    })
+
     this.route.paramMap.subscribe((paramMap : ParamMap) => {
       if(paramMap.has('postId')){
           this.mode = 'edit';
@@ -37,6 +46,8 @@ export class PostCreateComponent implements OnInit{
           this.post = this.postService.getPost(this.postId)
 
           this.isLoading= false;
+
+          this.form.setValue({title: this.post.title, content :this.post.content})
       }else{
         this.mode = 'create'
         this.postId = null;
@@ -44,18 +55,32 @@ export class PostCreateComponent implements OnInit{
     })
   }
 
-   onSavePost(form : NgForm ){
 
-    if(form.invalid){
+  onImagePicked(event : Event){
+    const file = (event.target as HTMLInputElement).files[0];//no es un string esto, es un archivo de javascript
+    this.form.patchValue({image: file})    //patch value permite apuntar solo control
+    this.form.get('image').updateValueAndValidity();//ejecutrarael  valor o controlador de la entrada sin haber escrito algo ahi
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.imagePreview = reader.result as string;
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+   onSavePost( ){
+
+    if(this.form.invalid){
       return
     }
     this.isLoading = true;
     if(this.mode === 'create'){
-      this.postService.addPost(form.value.title, form.value.content);
-      form.resetForm();
+      this.postService.addPost(this.form.value.title, this.form.value.content);
+
     }else{
-      this.postService.updatePost(this.postId, form.value.title, form.value.content)
+      this.postService.updatePost(this.postId, this.form.value.title, this.form.value.content)
     }
+    this.form.reset();
     /*  const post  : Post = {
       title : form.value.title,
       content : form.value.content
